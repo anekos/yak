@@ -1,8 +1,9 @@
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from yak.models import DictionaryResult, TranslationResult
 
 
+@runtime_checkable
 class Translator(Protocol):
     """翻訳バックエンドの共通インターフェイス。
 
@@ -18,6 +19,7 @@ class Translator(Protocol):
     ) -> TranslationResult: ...
 
 
+@runtime_checkable
 class DictionaryProvider(Protocol):
     """辞書モードを提供できるバックエンドのインターフェイス。"""
 

@@ -19,7 +19,9 @@ class FakeBackend:
         to_lang: str | None,
         extra_instruction: str | None,
     ) -> TranslationResult:
-        self.translate_calls.append({"text": text, "from": from_lang, "to": to_lang})
+        self.translate_calls.append(
+            {"text": text, "from": from_lang, "to": to_lang, "extra": extra_instruction}
+        )
         return TranslationResult(
             detected_source_language="English", translated_text="こんにちは"
         )
@@ -31,7 +33,9 @@ class FakeBackend:
         to_lang: str | None,
         extra_instruction: str | None,
     ) -> DictionaryResult:
-        self.lookup_calls.append({"text": text, "from": from_lang, "to": to_lang})
+        self.lookup_calls.append(
+            {"text": text, "from": from_lang, "to": to_lang, "extra": extra_instruction}
+        )
         return DictionaryResult(
             meanings=["猫"],
             pronunciation=Pronunciation(katakana="キャット", ipa="/kæt/"),

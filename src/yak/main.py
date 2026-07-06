@@ -8,6 +8,7 @@ from openai import OpenAI
 
 from yak.backends.openai import DEFAULT_MODEL, OpenAIBackend
 from yak.errors import YakError
+from yak.interactive import InteractiveSession, run_interactive
 from yak.render import render_dictionary
 
 
@@ -35,7 +36,16 @@ def main(
     try:
         if text is None:
             if sys.stdin.isatty():
-                raise YakError("no input text")  # Task 6 で対話モードに置き換える
+                backend = create_backend(model)
+                run_interactive(
+                    InteractiveSession(
+                        backend,
+                        dictionary=dictionary,
+                        from_lang=from_lang,
+                        to_lang=to_lang,
+                    )
+                )
+                return
             text = sys.stdin.read().strip()
         if not text:
             raise YakError("no input text")
