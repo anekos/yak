@@ -28,6 +28,7 @@ class CachingBackend:
     """任意のバックエンドを包み、結果を diskcache に永続キャッシュするラッパー。
 
     値は model_dump() した dict で保存する(クラス定義の pickle に依存させない)。
+    モデルのスキーマを変更する場合は namespace を変えるか手動でキャッシュをクリアする必要がある。
     """
 
     def __init__(

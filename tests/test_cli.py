@@ -4,6 +4,7 @@ from typing import Any
 import pytest
 from click.testing import CliRunner
 
+from yak.cache import open_cache
 from yak.main import main
 from yak.models import DictionaryResult, Pronunciation, TranslationResult
 
@@ -128,6 +129,9 @@ def test_clear_cache_clears_and_exits(
 ) -> None:
     monkeypatch.delenv("OPENAI_API_KEY_FOR_YAK", raising=False)
     monkeypatch.setattr("yak.cache.cache_directory", lambda: tmp_path / "cache")
+    with open_cache() as cache:
+        cache["a"] = 1
+        cache["b"] = 2
     result = CliRunner().invoke(main, ["--clear-cache"])
     assert result.exit_code == 0
-    assert "キャッシュをクリアしました" in result.output
+    assert "キャッシュをクリアしました (2 件)" in result.output
