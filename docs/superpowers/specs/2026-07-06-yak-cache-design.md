@@ -36,9 +36,10 @@ class CachingBackend:
 
 - `translate()` / `lookup()` はキーを組み立て、ヒットすれば inner を呼ばずに
   返す。ミス時は inner を呼んで結果を保存する
-- inner が対象プロトコルを実装していない場合の扱い(辞書モード非対応エラー)は
-  既存どおり CLI / InteractiveSession 側のガードに任せる。CachingBackend は
-  inner にそのまま委譲する
+- CachingBackend 自体は両プロトコルのメソッドを持つため、CLI /
+  InteractiveSession の isinstance ガードはラッパーに対して常に通る。
+  そのため inner が対象プロトコルを実装していない場合の検出は
+  CachingBackend 側で行い、既存と同一メッセージの YakError を送出する
 - ファクトリ(`main.create_backend`)が
   `CachingBackend(OpenAIBackend(...), open_cache(), namespace=f"openai:{model}")`
   と包む。OpenAIBackend と interactive.py は無変更
