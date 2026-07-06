@@ -1,7 +1,7 @@
 from typing import Any, cast
 
 import pytest
-from openai import OpenAI
+from openai import OpenAI, OpenAIError
 
 from yak.backends.openai import OpenAIBackend, language_instruction
 from yak.errors import YakError
@@ -65,6 +65,20 @@ class _FakeClient:
         self.chat = _Chat()
 
 
+class _FakeClientRaisingError:
+    """OpenAI クライアントの代役。parse() 呼び出しで OpenAIError を raise する。"""
+
+    def __init__(self) -> None:
+        class _Completions:
+            def parse(self, **kwargs: Any) -> Any:
+                raise OpenAIError("boom")
+
+        class _Chat:
+            completions = _Completions()
+
+        self.chat = _Chat()
+
+
 def _backend(parsed: Any) -> tuple[OpenAIBackend, _FakeClient]:
     fake = _FakeClient(parsed)
     return OpenAIBackend(cast(OpenAI, fake), "test-model"), fake
@@ -108,4 +122,11 @@ def test_lookup_returns_parsed_result() -> None:
 def test_translate_raises_yak_error_on_none_parsed() -> None:
     backend, _ = _backend(None)
     with pytest.raises(YakError):
+        backend.translate("hello", None, None, None)
+
+
+def test_translate_wraps_openai_error() -> None:
+    fake = _FakeClientRaisingError()
+    backend = OpenAIBackend(cast(OpenAI, fake), "test-model")
+    with pytest.raises(YakError, match="OpenAI API error"):
         backend.translate("hello", None, None, None)
