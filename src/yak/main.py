@@ -6,6 +6,7 @@ import sys
 import click
 from openai import OpenAI
 
+from yak.backends.base import DictionaryProvider
 from yak.backends.openai import DEFAULT_MODEL, OpenAIBackend
 from yak.errors import YakError
 from yak.interactive import InteractiveSession, run_interactive
@@ -23,7 +24,9 @@ def create_backend(model: str) -> OpenAIBackend:
 @click.option("--from", "-f", "from_lang", default=None, help="Source language")
 @click.option("--to", "-t", "to_lang", default=None, help="Target language")
 @click.option("--dictionary", "-d", is_flag=True, help="Dictionary mode")
-@click.option("--model", "-m", default=DEFAULT_MODEL, show_default=True)
+@click.option(
+    "--model", "-m", default=DEFAULT_MODEL, show_default=True, help="OpenAI model"
+)
 @click.argument("text", required=False)
 def main(
     from_lang: str | None,
@@ -51,6 +54,8 @@ def main(
             raise YakError("no input text")
         backend = create_backend(model)
         if dictionary:
+            if not isinstance(backend, DictionaryProvider):
+                raise YakError("this backend does not support dictionary mode")
             click.echo(
                 render_dictionary(backend.lookup(text, from_lang, to_lang, None))
             )

@@ -1,4 +1,5 @@
 import sys
+from collections.abc import Callable
 
 from yak.backends.base import DictionaryProvider, Translator
 from yak.errors import YakError
@@ -33,20 +34,24 @@ class InteractiveSession:
             return f"[system prompt 追加] {instruction}"
         extra = "\n".join(self._instructions) if self._instructions else None
         if self._dictionary:
-            assert isinstance(self._backend, DictionaryProvider)
+            if not isinstance(self._backend, DictionaryProvider):
+                raise YakError("this backend does not support dictionary mode")
             return render_dictionary(
                 self._backend.lookup(line, self._from_lang, self._to_lang, extra)
             )
-        assert isinstance(self._backend, Translator)
+        if not isinstance(self._backend, Translator):
+            raise YakError("this backend does not support translation mode")
         return self._backend.translate(
             line, self._from_lang, self._to_lang, extra
         ).translated_text
 
 
-def run_interactive(session: InteractiveSession) -> None:
+def run_interactive(
+    session: InteractiveSession, *, input_fn: Callable[[str], str] = input
+) -> None:
     while True:
         try:
-            line = input("yak> ")
+            line = input_fn("yak> ")
         except (EOFError, KeyboardInterrupt):
             print()
             return
