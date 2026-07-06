@@ -63,7 +63,7 @@ class CachingBackend:
             if cached is not None:
                 return TranslationResult.model_validate(cached)
         if not isinstance(self._inner, Translator):
-            raise YakError("this backend does not support translation")
+            raise YakError("this backend does not support translation mode")
         result = self._inner.translate(text, from_lang, to_lang, extra_instruction)
         self._cache[key] = result.model_dump()
         return result

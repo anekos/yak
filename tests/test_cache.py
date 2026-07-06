@@ -7,10 +7,28 @@ from tests.test_cli import FakeBackend
 from tests.test_interactive import TranslateOnlyBackend
 from yak.cache import CachingBackend
 from yak.errors import YakError
+from yak.models import DictionaryResult, Pronunciation
 
 
 def _make_cache(tmp_path: Path) -> diskcache.Cache:
     return diskcache.Cache(str(tmp_path / "cache"))
+
+
+class LookupOnlyBackend:
+    """`translate` を持たない、辞書専用のバックエンド。"""
+
+    def lookup(
+        self,
+        text: str,
+        from_lang: str | None,
+        to_lang: str | None,
+        extra_instruction: str | None,
+    ) -> DictionaryResult:
+        return DictionaryResult(
+            meanings=["test"],
+            pronunciation=Pronunciation(katakana="テスト", ipa="/test/"),
+            examples=["test example"],
+        )
 
 
 def test_second_translate_hits_cache(tmp_path: Path) -> None:
@@ -84,3 +102,11 @@ def test_lookup_with_translate_only_inner_raises(tmp_path: Path) -> None:
     )
     with pytest.raises(YakError, match="dictionary mode"):
         caching.lookup("word", None, None, None)
+
+
+def test_translate_with_lookup_only_inner_raises(tmp_path: Path) -> None:
+    caching = CachingBackend(
+        LookupOnlyBackend(), _make_cache(tmp_path), namespace="test"
+    )
+    with pytest.raises(YakError, match="translation mode"):
+        caching.translate("hello", None, None, None)
