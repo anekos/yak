@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -46,7 +47,7 @@ class FakeBackend:
 @pytest.fixture
 def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
     backend = FakeBackend()
-    monkeypatch.setattr("yak.main.create_backend", lambda model: backend)
+    monkeypatch.setattr("yak.main.create_backend", lambda model, **kwargs: backend)
     return backend
 
 
@@ -91,3 +92,42 @@ def test_missing_api_key(monkeypatch: pytest.MonkeyPatch) -> None:
     result = CliRunner().invoke(main, ["hello"])
     assert result.exit_code == 1
     assert "OPENAI_API_KEY_FOR_YAK" in result.stderr
+
+
+def _capture_create_backend(
+    monkeypatch: pytest.MonkeyPatch, captured: dict[str, Any]
+) -> FakeBackend:
+    backend = FakeBackend()
+
+    def fake_create(model: str, *, read_cache: bool = True) -> FakeBackend:
+        captured["read_cache"] = read_cache
+        return backend
+
+    monkeypatch.setattr("yak.main.create_backend", fake_create)
+    return backend
+
+
+def test_no_cache_disables_cache_read(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+    _capture_create_backend(monkeypatch, captured)
+    result = CliRunner().invoke(main, ["--no-cache", "hello"])
+    assert result.exit_code == 0
+    assert captured["read_cache"] is False
+
+
+def test_cache_read_enabled_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+    _capture_create_backend(monkeypatch, captured)
+    result = CliRunner().invoke(main, ["hello"])
+    assert result.exit_code == 0
+    assert captured["read_cache"] is True
+
+
+def test_clear_cache_clears_and_exits(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv("OPENAI_API_KEY_FOR_YAK", raising=False)
+    monkeypatch.setattr("yak.cache.cache_directory", lambda: tmp_path / "cache")
+    result = CliRunner().invoke(main, ["--clear-cache"])
+    assert result.exit_code == 0
+    assert "キャッシュをクリアしました" in result.output
