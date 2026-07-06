@@ -121,7 +121,6 @@ def test_run_interactive_returns_on_keyboard_interrupt() -> None:
 def test_run_interactive_prints_yak_error_and_continues(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    backend = FakeBackend()
     session = InteractiveSession(
         TranslateOnlyBackend(),  # type: ignore[arg-type]
         dictionary=True,
@@ -131,7 +130,6 @@ def test_run_interactive_prints_yak_error_and_continues(
     run_interactive(session, input_fn=_input_fn_from("word", "another"))
     captured = capsys.readouterr()
     assert captured.err.count("yak:") == 2
-    assert backend.lookup_calls == []
 
 
 def test_run_interactive_skips_empty_lines() -> None:
