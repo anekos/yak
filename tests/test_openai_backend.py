@@ -3,9 +3,14 @@ from typing import Any, cast
 import pytest
 from openai import OpenAI, OpenAIError
 
-from yak.backends.openai import OpenAIBackend, language_instruction
+from yak.backends.openai import (
+    DEFAULT_CLASSIFIER_MODEL,
+    DEFAULT_MODEL,
+    OpenAIBackend,
+    language_instruction,
+)
 from yak.errors import YakError
-from yak.models import DictionaryResult, Pronunciation, TranslationResult
+from yak.models import DictionaryResult, ModeDecision, Pronunciation, TranslationResult
 
 
 def test_language_instruction_both_specified() -> None:
@@ -130,3 +135,19 @@ def test_translate_wraps_openai_error() -> None:
     backend = OpenAIBackend(cast(OpenAI, fake), "test-model")
     with pytest.raises(YakError, match="OpenAI API error"):
         backend.translate("hello", None, None, None)
+
+
+def test_default_models() -> None:
+    assert DEFAULT_MODEL == "gpt-5-mini"
+    assert DEFAULT_CLASSIFIER_MODEL == "gpt-5-nano"
+
+
+def test_classify_returns_parsed_result() -> None:
+    expected = ModeDecision(is_dictionary_entry=True)
+    backend, fake = _backend(expected)
+    result = backend.classify("cat")
+    assert result == expected
+    call = fake.calls[0]
+    assert call["model"] == "test-model"
+    assert call["response_format"] is ModeDecision
+    assert call["messages"][1] == {"role": "user", "content": "cat"}

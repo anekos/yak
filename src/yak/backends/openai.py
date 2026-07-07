@@ -2,9 +2,10 @@ from openai import OpenAI, OpenAIError
 from pydantic import BaseModel
 
 from yak.errors import YakError
-from yak.models import DictionaryResult, TranslationResult
+from yak.models import DictionaryResult, ModeDecision, TranslationResult
 
-DEFAULT_MODEL = "gpt-4o-mini"
+DEFAULT_MODEL = "gpt-5-mini"
+DEFAULT_CLASSIFIER_MODEL = "gpt-5-nano"
 
 
 def language_instruction(from_lang: str | None, to_lang: str | None) -> str:
@@ -47,6 +48,15 @@ _DICTIONARY_SYSTEM = (
     "otherwise use the input word itself."
 )
 
+_CLASSIFY_SYSTEM = (
+    "You are a mode classifier for a translation tool. "
+    "Decide whether the input is a dictionary headword: a single word, or a "
+    "short set phrase that belongs in a dictionary as an entry, such as an "
+    "idiom, phrasal verb, or compound (e.g. 'look up', 'in spite of', '猫'). "
+    "Sentences and free-form text are not dictionary headwords. "
+    "The input may be in any language."
+)
+
 
 class OpenAIBackend:
     """Translator / DictionaryProvider の OpenAI 実装。"""
@@ -78,6 +88,9 @@ class OpenAIBackend:
             languages=language_instruction(from_lang, to_lang)
         )
         return self._parse(system, text, extra_instruction, DictionaryResult)
+
+    def classify(self, text: str) -> ModeDecision:
+        return self._parse(_CLASSIFY_SYSTEM, text, None, ModeDecision)
 
     def _parse[T: BaseModel](
         self,
