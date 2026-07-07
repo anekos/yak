@@ -6,7 +6,7 @@ from click.testing import CliRunner
 
 from yak.cache import open_cache
 from yak.main import main
-from yak.models import DictionaryResult, Pronunciation, TranslationResult
+from yak.models import DictionaryResult, ModeDecision, Pronunciation, TranslationResult
 
 
 class FakeBackend:
@@ -43,6 +43,16 @@ class FakeBackend:
             pronunciation=Pronunciation(katakana="キャット", ipa="/kæt/"),
             examples=["I have a cat."],
         )
+
+
+class FakeClassifier:
+    def __init__(self, is_dictionary_entry: bool = False) -> None:
+        self.decision = is_dictionary_entry
+        self.classify_calls: list[str] = []
+
+    def classify(self, text: str) -> ModeDecision:
+        self.classify_calls.append(text)
+        return ModeDecision(is_dictionary_entry=self.decision)
 
 
 @pytest.fixture
