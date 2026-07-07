@@ -33,10 +33,11 @@
 
 | 用途 | オプション | 環境変数 | デフォルト |
 |---|---|---|---|
-| 翻訳・辞書 | `--model/-m` | `YAK_MODEL` | `gpt-4.1-nano` |
-| モード自動判定 | `--classifier-model` | `YAK_CLASSIFIER_MODEL` | `gpt-4.1-nano` |
+| 翻訳・辞書 | `--model/-m` | `YAK_MODEL` | `gpt-5-mini` |
+| モード自動判定 | `--classifier-model` | `YAK_CLASSIFIER_MODEL` | `gpt-5-nano` |
 
-- 既存デフォルト `gpt-4o-mini` は `gpt-4.1-nano` に変更する
+- 翻訳は品質のためミドルレンジ、分類は bool 判定のみなので最軽量にする
+- 既存デフォルト `gpt-4o-mini` は `gpt-5-mini` に変更する
   (キャッシュ namespace にモデル名が含まれるため、旧エントリは無害に残るだけ)
 
 ## アーキテクチャ
