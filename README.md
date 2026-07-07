@@ -23,12 +23,18 @@ yak [OPTIONS] [TEXT]
 |---|---|
 | `--from/-f LANG` | 原文の言語 |
 | `--to/-t LANG` | 訳先の言語 |
-| `--dictionary/-d` | 辞書モード(意味・発音・例文) |
-| `--model/-m MODEL` | OpenAI モデル(デフォルト: `gpt-4o-mini`) |
+| `--dictionary/-d` | 辞書モードを強制(意味・発音・例文) |
+| `--translator` | 翻訳モードを強制 |
+| `--model/-m MODEL` | 翻訳・辞書用モデル(envvar: `YAK_MODEL`、デフォルト: `gpt-5-mini`) |
+| `--classifier-model MODEL` | モード自動判定用モデル(envvar: `YAK_CLASSIFIER_MODEL`、デフォルト: `gpt-5-nano`) |
 | `--no-cache` | キャッシュを読まずに翻訳(結果は保存される) |
 | `--clear-cache` | キャッシュを全削除して終了 |
 
 言語未指定なら英日ペアとみなし、原文と逆の言語へ翻訳する。
+
+モード未指定の場合は入力を軽量モデルで判定し、単語・熟語・慣用句などの
+「辞書の見出し語」なら辞書モード、文なら翻訳モードで処理する
+(この自動判定は追加の API 呼び出しを 1 回行う。判定結果もキャッシュされる)。
 
 ```
 yak hello                 # → こんにちは
@@ -48,6 +54,6 @@ yak                       # 対話モード
 
 ### キャッシュ
 
-翻訳・辞書結果は `platformdirs` の示すユーザーキャッシュディレクトリ
+翻訳・辞書・モード判定の結果は `platformdirs` の示すユーザーキャッシュディレクトリ
 (Linux では `~/.cache/yak`)に diskcache で永続キャッシュされる
 (上限 100MB、TTL なし)。同じ入力・言語・モデルの再実行は API を呼ばない。

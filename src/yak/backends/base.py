@@ -1,6 +1,6 @@
 from typing import Protocol, runtime_checkable
 
-from yak.models import DictionaryResult, TranslationResult
+from yak.models import DictionaryResult, ModeDecision, TranslationResult
 
 
 @runtime_checkable
@@ -30,3 +30,10 @@ class DictionaryProvider(Protocol):
         to_lang: str | None,
         extra_instruction: str | None,
     ) -> DictionaryResult: ...
+
+
+@runtime_checkable
+class ModeClassifier(Protocol):
+    """入力が辞書の見出し語かどうかを判定するバックエンドのインターフェイス。"""
+
+    def classify(self, text: str) -> ModeDecision: ...

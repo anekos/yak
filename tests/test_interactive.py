@@ -2,16 +2,22 @@ from collections.abc import Callable
 
 import pytest
 
-from tests.test_cli import FakeBackend
+from tests.test_cli import FakeBackend, FakeClassifier
+from yak.backends.base import ModeClassifier
 from yak.errors import YakError
-from yak.interactive import InteractiveSession, run_interactive
+from yak.interactive import InteractiveSession, Mode, run_interactive
 from yak.models import TranslationResult
 
 
-def _session(backend: FakeBackend, dictionary: bool = False) -> InteractiveSession:
+def _session(
+    backend: FakeBackend,
+    mode: Mode = "translation",
+    classifier: ModeClassifier | None = None,
+) -> InteractiveSession:
     return InteractiveSession(
         backend,  # type: ignore[arg-type]
-        dictionary=dictionary,
+        mode=mode,
+        classifier=classifier,
         from_lang=None,
         to_lang=None,
     )
@@ -41,7 +47,7 @@ def test_translates_plain_line() -> None:
 
 def test_dictionary_mode_line() -> None:
     backend = FakeBackend()
-    session = _session(backend, dictionary=True)
+    session = _session(backend, mode="dictionary")
     output = session.handle_line("cat")
     assert "意味:" in output
     assert backend.lookup_calls[0]["text"] == "cat"
@@ -80,7 +86,8 @@ def test_dictionary_mode_with_translate_only_backend_raises() -> None:
     backend = TranslateOnlyBackend()
     session = InteractiveSession(
         backend,  # type: ignore[arg-type]
-        dictionary=True,
+        mode="dictionary",
+        classifier=None,
         from_lang=None,
         to_lang=None,
     )
@@ -123,7 +130,8 @@ def test_run_interactive_prints_yak_error_and_continues(
 ) -> None:
     session = InteractiveSession(
         TranslateOnlyBackend(),  # type: ignore[arg-type]
-        dictionary=True,
+        mode="dictionary",
+        classifier=None,
         from_lang=None,
         to_lang=None,
     )
@@ -137,3 +145,23 @@ def test_run_interactive_skips_empty_lines() -> None:
     session = _session(backend)
     run_interactive(session, input_fn=_input_fn_from("   ", "", "hello"))
     assert backend.translate_calls[0]["text"] == "hello"
+
+
+def test_auto_mode_classifies_each_line() -> None:
+    backend = FakeBackend()
+    classifier = FakeClassifier(is_dictionary_entry=True)
+    session = _session(backend, mode="auto", classifier=classifier)
+    output = session.handle_line("cat")
+    assert "意味:" in output
+    classifier.decision = False
+    assert session.handle_line("hello world") == "こんにちは"
+    assert classifier.classify_calls == ["cat", "hello world"]
+
+
+def test_auto_mode_does_not_classify_bang_lines() -> None:
+    backend = FakeBackend()
+    classifier = FakeClassifier()
+    session = _session(backend, mode="auto", classifier=classifier)
+    session.handle_line("!Use polite form.")
+    session.handle_line("!")
+    assert classifier.classify_calls == []

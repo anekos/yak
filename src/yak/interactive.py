@@ -1,9 +1,12 @@
 import sys
 from collections.abc import Callable
+from typing import Literal
 
-from yak.backends.base import DictionaryProvider, Translator
+from yak.backends.base import DictionaryProvider, ModeClassifier, Translator
 from yak.errors import YakError
 from yak.render import render_dictionary
+
+Mode = Literal["dictionary", "translation", "auto"]
 
 
 class InteractiveSession:
@@ -13,12 +16,14 @@ class InteractiveSession:
         self,
         backend: Translator | DictionaryProvider,
         *,
-        dictionary: bool,
+        mode: Mode,
+        classifier: ModeClassifier | None,
         from_lang: str | None,
         to_lang: str | None,
     ) -> None:
         self._backend = backend
-        self._dictionary = dictionary
+        self._mode = mode
+        self._classifier = classifier
         self._from_lang = from_lang
         self._to_lang = to_lang
         self._instructions: list[str] = []
@@ -33,7 +38,7 @@ class InteractiveSession:
             self._instructions.append(instruction)
             return f"[system prompt 追加] {instruction}"
         extra = "\n".join(self._instructions) if self._instructions else None
-        if self._dictionary:
+        if self._use_dictionary(line):
             if not isinstance(self._backend, DictionaryProvider):
                 raise YakError("this backend does not support dictionary mode")
             return render_dictionary(
@@ -44,6 +49,15 @@ class InteractiveSession:
         return self._backend.translate(
             line, self._from_lang, self._to_lang, extra
         ).translated_text
+
+    def _use_dictionary(self, text: str) -> bool:
+        if self._mode == "dictionary":
+            return True
+        if self._mode == "translation":
+            return False
+        if self._classifier is None:
+            raise YakError("auto mode requires a classifier")
+        return self._classifier.classify(text).is_dictionary_entry
 
 
 def run_interactive(

@@ -6,7 +6,7 @@ from click.testing import CliRunner
 
 from yak.cache import open_cache
 from yak.main import main
-from yak.models import DictionaryResult, Pronunciation, TranslationResult
+from yak.models import DictionaryResult, ModeDecision, Pronunciation, TranslationResult
 
 
 class FakeBackend:
@@ -45,10 +45,24 @@ class FakeBackend:
         )
 
 
+class FakeClassifier:
+    def __init__(self, is_dictionary_entry: bool = False) -> None:
+        self.decision = is_dictionary_entry
+        self.classify_calls: list[str] = []
+
+    def classify(self, text: str) -> ModeDecision:
+        self.classify_calls.append(text)
+        return ModeDecision(is_dictionary_entry=self.decision)
+
+
 @pytest.fixture
 def fake_backend(monkeypatch: pytest.MonkeyPatch) -> FakeBackend:
     backend = FakeBackend()
     monkeypatch.setattr("yak.main.create_backend", lambda model, **kwargs: backend)
+    monkeypatch.setattr(
+        "yak.main.create_classifier",
+        lambda model, **kwargs: FakeClassifier(is_dictionary_entry=False),
+    )
     return backend
 
 
@@ -105,6 +119,10 @@ def _capture_create_backend(
         return backend
 
     monkeypatch.setattr("yak.main.create_backend", fake_create)
+    monkeypatch.setattr(
+        "yak.main.create_classifier",
+        lambda model, **kwargs: FakeClassifier(is_dictionary_entry=False),
+    )
     return backend
 
 
@@ -135,3 +153,99 @@ def test_clear_cache_clears_and_exits(
     result = CliRunner().invoke(main, ["--clear-cache"])
     assert result.exit_code == 0
     assert "キャッシュをクリアしました (2 件)" in result.output
+
+
+def _patch_factories(
+    monkeypatch: pytest.MonkeyPatch,
+    backend: FakeBackend,
+    classifier: FakeClassifier,
+) -> None:
+    monkeypatch.setattr("yak.main.create_backend", lambda model, **kwargs: backend)
+    monkeypatch.setattr(
+        "yak.main.create_classifier", lambda model, **kwargs: classifier
+    )
+
+
+def test_auto_mode_dictionary_for_headword(monkeypatch: pytest.MonkeyPatch) -> None:
+    backend = FakeBackend()
+    classifier = FakeClassifier(is_dictionary_entry=True)
+    _patch_factories(monkeypatch, backend, classifier)
+    result = CliRunner().invoke(main, ["cat"])
+    assert result.exit_code == 0
+    assert "意味:" in result.output
+    assert classifier.classify_calls == ["cat"]
+    assert backend.lookup_calls[0]["text"] == "cat"
+
+
+def test_auto_mode_translation_for_sentence(monkeypatch: pytest.MonkeyPatch) -> None:
+    backend = FakeBackend()
+    classifier = FakeClassifier(is_dictionary_entry=False)
+    _patch_factories(monkeypatch, backend, classifier)
+    result = CliRunner().invoke(main, ["hello world"])
+    assert result.exit_code == 0
+    assert result.output == "こんにちは\n"
+    assert classifier.classify_calls == ["hello world"]
+
+
+def test_dictionary_flag_skips_classifier(monkeypatch: pytest.MonkeyPatch) -> None:
+    backend = FakeBackend()
+    classifier = FakeClassifier()
+    _patch_factories(monkeypatch, backend, classifier)
+    result = CliRunner().invoke(main, ["-d", "cat"])
+    assert result.exit_code == 0
+    assert classifier.classify_calls == []
+    assert backend.lookup_calls[0]["text"] == "cat"
+
+
+def test_translator_flag_skips_classifier(monkeypatch: pytest.MonkeyPatch) -> None:
+    backend = FakeBackend()
+    classifier = FakeClassifier(is_dictionary_entry=True)
+    _patch_factories(monkeypatch, backend, classifier)
+    result = CliRunner().invoke(main, ["--translator", "cat"])
+    assert result.exit_code == 0
+    assert result.output == "こんにちは\n"
+    assert classifier.classify_calls == []
+
+
+def test_dictionary_and_translator_conflict(fake_backend: FakeBackend) -> None:
+    result = CliRunner().invoke(main, ["-d", "--translator", "cat"])
+    assert result.exit_code == 1
+    assert "cannot use --dictionary and --translator together" in result.stderr
+
+
+def test_model_resolution_option_beats_envvar(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, str] = {}
+
+    def fake_create(model: str, **kwargs: Any) -> FakeBackend:
+        captured["model"] = model
+        return FakeBackend()
+
+    monkeypatch.setattr("yak.main.create_backend", fake_create)
+    monkeypatch.setattr(
+        "yak.main.create_classifier", lambda model, **kwargs: FakeClassifier()
+    )
+    CliRunner().invoke(main, ["--translator", "hello"], env={"YAK_MODEL": "env-model"})
+    assert captured["model"] == "env-model"
+    CliRunner().invoke(
+        main,
+        ["--translator", "-m", "cli-model", "hello"],
+        env={"YAK_MODEL": "env-model"},
+    )
+    assert captured["model"] == "cli-model"
+
+
+def test_classifier_model_envvar(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, str] = {}
+
+    def fake_classifier_factory(model: str, **kwargs: Any) -> FakeClassifier:
+        captured["model"] = model
+        return FakeClassifier()
+
+    monkeypatch.setattr(
+        "yak.main.create_backend", lambda model, **kwargs: FakeBackend()
+    )
+    monkeypatch.setattr("yak.main.create_classifier", fake_classifier_factory)
+    CliRunner().invoke(main, ["hello"], env={"YAK_CLASSIFIER_MODEL": "nano-x"})
+    assert captured["model"] == "nano-x"

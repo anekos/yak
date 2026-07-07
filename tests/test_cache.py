@@ -3,7 +3,7 @@ from pathlib import Path
 import diskcache
 import pytest
 
-from tests.test_cli import FakeBackend
+from tests.test_cli import FakeBackend, FakeClassifier
 from tests.test_interactive import TranslateOnlyBackend
 from yak.cache import CachingBackend
 from yak.errors import YakError
@@ -110,3 +110,21 @@ def test_translate_with_lookup_only_inner_raises(tmp_path: Path) -> None:
     )
     with pytest.raises(YakError, match="translation mode"):
         caching.translate("hello", None, None, None)
+
+
+def test_second_classify_hits_cache(tmp_path: Path) -> None:
+    classifier = FakeClassifier(is_dictionary_entry=True)
+    caching = CachingBackend(classifier, _make_cache(tmp_path), namespace="test")
+    first = caching.classify("cat")
+    second = caching.classify("cat")
+    assert first == second
+    assert first.is_dictionary_entry is True
+    assert classifier.classify_calls == ["cat"]
+
+
+def test_classify_with_translate_only_inner_raises(tmp_path: Path) -> None:
+    caching = CachingBackend(
+        TranslateOnlyBackend(), _make_cache(tmp_path), namespace="test"
+    )
+    with pytest.raises(YakError, match="mode classification"):
+        caching.classify("cat")

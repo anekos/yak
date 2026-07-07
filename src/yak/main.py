@@ -7,10 +7,14 @@ import click
 from openai import OpenAI
 
 from yak.backends.base import DictionaryProvider
-from yak.backends.openai import DEFAULT_MODEL, OpenAIBackend
+from yak.backends.openai import (
+    DEFAULT_CLASSIFIER_MODEL,
+    DEFAULT_MODEL,
+    OpenAIBackend,
+)
 from yak.cache import CachingBackend, clear_cache, open_cache
 from yak.errors import YakError
-from yak.interactive import InteractiveSession, run_interactive
+from yak.interactive import InteractiveSession, Mode, run_interactive
 from yak.render import render_dictionary
 
 
@@ -27,12 +31,30 @@ def create_backend(model: str, *, read_cache: bool = True) -> CachingBackend:
     )
 
 
+def create_classifier(model: str, *, read_cache: bool = True) -> CachingBackend:
+    """モード自動判定用バックエンド。テストから独立に差し替えられるよう分離する。"""
+    return create_backend(model, read_cache=read_cache)
+
+
 @click.command()
 @click.option("--from", "-f", "from_lang", default=None, help="Source language")
 @click.option("--to", "-t", "to_lang", default=None, help="Target language")
-@click.option("--dictionary", "-d", is_flag=True, help="Dictionary mode")
+@click.option("--dictionary", "-d", is_flag=True, help="Force dictionary mode")
+@click.option("--translator", is_flag=True, help="Force translation mode")
 @click.option(
-    "--model", "-m", default=DEFAULT_MODEL, show_default=True, help="OpenAI model"
+    "--model",
+    "-m",
+    envvar="YAK_MODEL",
+    default=DEFAULT_MODEL,
+    show_default=True,
+    help="OpenAI model",
+)
+@click.option(
+    "--classifier-model",
+    envvar="YAK_CLASSIFIER_MODEL",
+    default=DEFAULT_CLASSIFIER_MODEL,
+    show_default=True,
+    help="OpenAI model for mode auto-detection",
 )
 @click.option(
     "--no-cache", is_flag=True, help="Bypass cache reads (results are still saved)"
@@ -45,7 +67,9 @@ def main(
     from_lang: str | None,
     to_lang: str | None,
     dictionary: bool,
+    translator: bool,
     model: str,
+    classifier_model: str,
     no_cache: bool,
     clear_cache_flag: bool,
     text: str | None,
@@ -56,13 +80,24 @@ def main(
             count = clear_cache()
             click.echo(f"キャッシュをクリアしました ({count} 件)")
             return
+        if dictionary and translator:
+            raise YakError("cannot use --dictionary and --translator together")
+        mode: Mode = (
+            "dictionary" if dictionary else "translation" if translator else "auto"
+        )
         if text is None:
             if sys.stdin.isatty():
                 backend = create_backend(model, read_cache=not no_cache)
+                classifier = (
+                    create_classifier(classifier_model, read_cache=not no_cache)
+                    if mode == "auto"
+                    else None
+                )
                 run_interactive(
                     InteractiveSession(
                         backend,
-                        dictionary=dictionary,
+                        mode=mode,
+                        classifier=classifier,
                         from_lang=from_lang,
                         to_lang=to_lang,
                     )
@@ -72,7 +107,12 @@ def main(
         if not text:
             raise YakError("no input text")
         backend = create_backend(model, read_cache=not no_cache)
-        if dictionary:
+        if mode == "auto":
+            classifier = create_classifier(classifier_model, read_cache=not no_cache)
+            use_dictionary = classifier.classify(text).is_dictionary_entry
+        else:
+            use_dictionary = mode == "dictionary"
+        if use_dictionary:
             if not isinstance(backend, DictionaryProvider):
                 raise YakError("this backend does not support dictionary mode")
             click.echo(
