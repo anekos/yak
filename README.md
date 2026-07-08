@@ -29,6 +29,7 @@ yak [OPTIONS] [TEXT]
 | `--classifier-model MODEL` | モード自動判定用モデル(envvar: `YAK_CLASSIFIER_MODEL`、デフォルト: `gpt-5-nano`) |
 | `--no-cache` | キャッシュを読まずに翻訳(結果は保存される) |
 | `--clear-cache` | キャッシュを全削除して終了 |
+| `--oneline/-1` | 出力を 1 行にする(辞書モードは最初の意味のみ、翻訳モードは改行をスペースに置換) |
 
 言語未指定なら英日ペアとみなし、原文と逆の言語へ翻訳する。
 
@@ -40,6 +41,7 @@ yak [OPTIONS] [TEXT]
 yak hello                 # → こんにちは
 yak -t フランス語 hello      # → bonjour
 yak -d cat                # 辞書モード
+yak -1 cat                # → 猫 (1 行出力)
 echo "hello" | yak        # stdin から
 yak                       # 対話モード
 ```

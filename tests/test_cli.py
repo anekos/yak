@@ -249,3 +249,32 @@ def test_classifier_model_envvar(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("yak.main.create_classifier", fake_classifier_factory)
     CliRunner().invoke(main, ["hello"], env={"YAK_CLASSIFIER_MODEL": "nano-x"})
     assert captured["model"] == "nano-x"
+
+
+def test_oneline_dictionary_outputs_first_meaning(
+    fake_backend: FakeBackend,
+) -> None:
+    result = CliRunner().invoke(main, ["-d", "-1", "cat"])
+    assert result.exit_code == 0
+    assert result.output == "猫\n"
+
+
+def test_oneline_translation_joins_lines(monkeypatch: pytest.MonkeyPatch) -> None:
+    class MultilineBackend(FakeBackend):
+        def translate(
+            self,
+            text: str,
+            from_lang: str | None,
+            to_lang: str | None,
+            extra_instruction: str | None,
+        ) -> TranslationResult:
+            super().translate(text, from_lang, to_lang, extra_instruction)
+            return TranslationResult(
+                detected_source_language="English",
+                translated_text="一行目。\n\n二行目。",
+            )
+
+    _patch_factories(monkeypatch, MultilineBackend(), FakeClassifier())
+    result = CliRunner().invoke(main, ["--translator", "--oneline", "hello"])
+    assert result.exit_code == 0
+    assert result.output == "一行目。 二行目。\n"
