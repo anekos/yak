@@ -4,7 +4,7 @@ from typing import Literal
 
 from yak.backends.base import DictionaryProvider, ModeClassifier, Translator
 from yak.errors import YakError
-from yak.render import render_dictionary
+from yak.render import oneline_text, render_dictionary
 
 Mode = Literal["dictionary", "translation", "auto"]
 
@@ -20,12 +20,14 @@ class InteractiveSession:
         classifier: ModeClassifier | None,
         from_lang: str | None,
         to_lang: str | None,
+        oneline: bool = False,
     ) -> None:
         self._backend = backend
         self._mode = mode
         self._classifier = classifier
         self._from_lang = from_lang
         self._to_lang = to_lang
+        self._oneline = oneline
         self._instructions: list[str] = []
 
     def handle_line(self, line: str) -> str:
@@ -42,13 +44,15 @@ class InteractiveSession:
             if not isinstance(self._backend, DictionaryProvider):
                 raise YakError("this backend does not support dictionary mode")
             return render_dictionary(
-                self._backend.lookup(line, self._from_lang, self._to_lang, extra)
+                self._backend.lookup(line, self._from_lang, self._to_lang, extra),
+                oneline=self._oneline,
             )
         if not isinstance(self._backend, Translator):
             raise YakError("this backend does not support translation mode")
-        return self._backend.translate(
+        translated = self._backend.translate(
             line, self._from_lang, self._to_lang, extra
         ).translated_text
+        return oneline_text(translated) if self._oneline else translated
 
     def _use_dictionary(self, text: str) -> bool:
         if self._mode == "dictionary":
