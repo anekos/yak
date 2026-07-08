@@ -15,7 +15,7 @@ from yak.backends.openai import (
 from yak.cache import CachingBackend, clear_cache, open_cache
 from yak.errors import YakError
 from yak.interactive import InteractiveSession, Mode, run_interactive
-from yak.render import render_dictionary
+from yak.render import oneline_text, render_dictionary
 
 
 def create_backend(model: str, *, read_cache: bool = True) -> CachingBackend:
@@ -62,6 +62,7 @@ def create_classifier(model: str, *, read_cache: bool = True) -> CachingBackend:
 @click.option(
     "--clear-cache", "clear_cache_flag", is_flag=True, help="Clear the cache and exit"
 )
+@click.option("--oneline", "-1", "oneline", is_flag=True, help="Output a single line")
 @click.argument("text", required=False)
 def main(
     from_lang: str | None,
@@ -72,6 +73,7 @@ def main(
     classifier_model: str,
     no_cache: bool,
     clear_cache_flag: bool,
+    oneline: bool,
     text: str | None,
 ) -> None:
     """Translate TEXT (or stdin) with OpenAI."""
@@ -100,6 +102,7 @@ def main(
                         classifier=classifier,
                         from_lang=from_lang,
                         to_lang=to_lang,
+                        oneline=oneline,
                     )
                 )
                 return
@@ -116,12 +119,16 @@ def main(
             if not isinstance(backend, DictionaryProvider):
                 raise YakError("this backend does not support dictionary mode")
             click.echo(
-                render_dictionary(backend.lookup(text, from_lang, to_lang, None))
+                render_dictionary(
+                    backend.lookup(text, from_lang, to_lang, None),
+                    oneline=oneline,
+                )
             )
         else:
-            click.echo(
-                backend.translate(text, from_lang, to_lang, None).translated_text
-            )
+            translated = backend.translate(
+                text, from_lang, to_lang, None
+            ).translated_text
+            click.echo(oneline_text(translated) if oneline else translated)
     except YakError as e:
         click.echo(f"yak: {e}", err=True)
         sys.exit(1)

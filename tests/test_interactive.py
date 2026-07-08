@@ -6,13 +6,14 @@ from tests.test_cli import FakeBackend, FakeClassifier
 from yak.backends.base import ModeClassifier
 from yak.errors import YakError
 from yak.interactive import InteractiveSession, Mode, run_interactive
-from yak.models import TranslationResult
+from yak.models import DictionaryResult, Pronunciation, TranslationResult
 
 
 def _session(
     backend: FakeBackend,
     mode: Mode = "translation",
     classifier: ModeClassifier | None = None,
+    oneline: bool = False,
 ) -> InteractiveSession:
     return InteractiveSession(
         backend,  # type: ignore[arg-type]
@@ -20,6 +21,7 @@ def _session(
         classifier=classifier,
         from_lang=None,
         to_lang=None,
+        oneline=oneline,
     )
 
 
@@ -35,6 +37,35 @@ class TranslateOnlyBackend:
     ) -> TranslationResult:
         return TranslationResult(
             detected_source_language="English", translated_text="こんにちは"
+        )
+
+
+class MultilineBackend:
+    """複数行の結果を返す、oneline テスト用バックエンド。"""
+
+    def translate(
+        self,
+        text: str,
+        from_lang: str | None,
+        to_lang: str | None,
+        extra_instruction: str | None,
+    ) -> TranslationResult:
+        return TranslationResult(
+            detected_source_language="English",
+            translated_text="一行目。\n\n二行目。",
+        )
+
+    def lookup(
+        self,
+        text: str,
+        from_lang: str | None,
+        to_lang: str | None,
+        extra_instruction: str | None,
+    ) -> DictionaryResult:
+        return DictionaryResult(
+            meanings=["猫", "ネコ科の動物"],
+            pronunciation=Pronunciation(katakana="キャット", ipa="/kæt/"),
+            examples=["I have a cat."],
         )
 
 
@@ -165,3 +196,34 @@ def test_auto_mode_does_not_classify_bang_lines() -> None:
     session.handle_line("!Use polite form.")
     session.handle_line("!")
     assert classifier.classify_calls == []
+
+
+def test_oneline_translation_joins_lines() -> None:
+    session = InteractiveSession(
+        MultilineBackend(),  # type: ignore[arg-type]
+        mode="translation",
+        classifier=None,
+        from_lang=None,
+        to_lang=None,
+        oneline=True,
+    )
+    assert session.handle_line("hello") == "一行目。 二行目。"
+
+
+def test_oneline_dictionary_first_meaning_only() -> None:
+    session = InteractiveSession(
+        MultilineBackend(),  # type: ignore[arg-type]
+        mode="dictionary",
+        classifier=None,
+        from_lang=None,
+        to_lang=None,
+        oneline=True,
+    )
+    assert session.handle_line("cat") == "猫"
+
+
+def test_oneline_does_not_affect_bang_feedback() -> None:
+    session = _session(FakeBackend(), oneline=True)
+    feedback = session.handle_line("!Use polite form.")
+    assert feedback == "[system prompt 追加] Use polite form."
+    assert session.handle_line("!") == "[system prompt をクリアしました]"
