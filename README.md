@@ -27,11 +27,18 @@ yak [OPTIONS] [TEXT]
 | `--translator` | 翻訳モードを強制 |
 | `--model/-m MODEL` | 翻訳・辞書用モデル(envvar: `YAK_MODEL`、デフォルト: `gpt-5-mini`) |
 | `--classifier-model MODEL` | モード自動判定用モデル(envvar: `YAK_CLASSIFIER_MODEL`、デフォルト: `gpt-5-nano`) |
+| `--reasoning-effort/-r EFFORT` | 推論の深さ(envvar: `YAK_REASONING_EFFORT`、デフォルト: `minimal`) |
 | `--no-cache` | キャッシュを読まずに翻訳(結果は保存される) |
 | `--clear-cache` | キャッシュを全削除して終了 |
 | `--oneline/-1` | 出力を 1 行にする(辞書モードは最初の意味のみ、翻訳モードは改行をスペースに置換) |
 
 言語未指定なら英日ペアとみなし、原文と逆の言語へ翻訳する。
+
+`--reasoning-effort` は gpt-5 系の推論量を制御する。深いほど訳文の質は上がるが
+遅くなる。指定できる値は `none` / `minimal` / `low` / `medium` / `high` / `xhigh`
+(どれを受け付けるかはモデル依存で、`none` と `xhigh` は gpt-5.1 系のみ)。
+翻訳・辞書用モデルとモード自動判定用モデルの両方に適用される。
+API のデフォルトは `medium` だが、yak は速度優先で `minimal` を既定にしている。
 
 モード未指定の場合は入力を軽量モデルで判定し、単語・熟語・慣用句などの
 「辞書の見出し語」なら辞書モード、文なら翻訳モードで処理する
@@ -58,4 +65,4 @@ yak                       # 対話モード
 
 翻訳・辞書・モード判定の結果は `platformdirs` の示すユーザーキャッシュディレクトリ
 (Linux では `~/.cache/yak`)に diskcache で永続キャッシュされる
-(上限 100MB、TTL なし)。同じ入力・言語・モデルの再実行は API を呼ばない。
+(上限 100MB、TTL なし)。同じ入力・言語・モデル・推論の深さの再実行は API を呼ばない。
