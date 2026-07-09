@@ -61,6 +61,11 @@ yak                       # 対話モード
 - `!` — 追加システムプロンプトをクリア
 - Ctrl-D / Ctrl-C — 終了
 
+readline による行編集が使える。Ctrl-P / Ctrl-N で履歴を辿り、Ctrl-R で履歴を検索、
+Ctrl-A / Ctrl-E で行頭・行末へ移動する。入力履歴は
+`platformdirs` の示すユーザー状態ディレクトリ(Linux では `~/.local/state/yak/history`)に
+最大 1000 行、パーミッション 600 で保存され、次回以降のセッションでも辿れる。
+
 ### キャッシュ
 
 翻訳・辞書・モード判定の結果は `platformdirs` の示すユーザーキャッシュディレクトリ
