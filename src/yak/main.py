@@ -16,6 +16,7 @@ from yak.backends.openai import (
 )
 from yak.cache import CachingBackend, clear_cache, open_cache
 from yak.errors import YakError
+from yak.history import readline_history
 from yak.interactive import InteractiveSession, Mode, run_interactive
 from yak.render import oneline_text, render_dictionary
 
@@ -125,16 +126,17 @@ def main(
                     if mode == "auto"
                     else None
                 )
-                run_interactive(
-                    InteractiveSession(
-                        backend,
-                        mode=mode,
-                        classifier=classifier,
-                        from_lang=from_lang,
-                        to_lang=to_lang,
-                        oneline=oneline,
+                with readline_history():
+                    run_interactive(
+                        InteractiveSession(
+                            backend,
+                            mode=mode,
+                            classifier=classifier,
+                            from_lang=from_lang,
+                            to_lang=to_lang,
+                            oneline=oneline,
+                        )
                     )
-                )
                 return
             text = sys.stdin.read().strip()
         if not text:
