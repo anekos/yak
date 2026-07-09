@@ -114,8 +114,8 @@ def _capture_create_backend(
 ) -> FakeBackend:
     backend = FakeBackend()
 
-    def fake_create(model: str, *, read_cache: bool = True) -> FakeBackend:
-        captured["read_cache"] = read_cache
+    def fake_create(model: str, **kwargs: Any) -> FakeBackend:
+        captured.update(kwargs)
         return backend
 
     monkeypatch.setattr("yak.main.create_backend", fake_create)
@@ -249,6 +249,51 @@ def test_classifier_model_envvar(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("yak.main.create_classifier", fake_classifier_factory)
     CliRunner().invoke(main, ["hello"], env={"YAK_CLASSIFIER_MODEL": "nano-x"})
     assert captured["model"] == "nano-x"
+
+
+def test_reasoning_effort_defaults_to_minimal(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+    _capture_create_backend(monkeypatch, captured)
+    result = CliRunner().invoke(main, ["--translator", "hello"])
+    assert result.exit_code == 0
+    assert captured["reasoning_effort"] == "minimal"
+
+
+def test_reasoning_effort_option_beats_envvar(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+    _capture_create_backend(monkeypatch, captured)
+    CliRunner().invoke(
+        main, ["--translator", "hello"], env={"YAK_REASONING_EFFORT": "low"}
+    )
+    assert captured["reasoning_effort"] == "low"
+    CliRunner().invoke(
+        main,
+        ["--translator", "-r", "high", "hello"],
+        env={"YAK_REASONING_EFFORT": "low"},
+    )
+    assert captured["reasoning_effort"] == "high"
+
+
+def test_reasoning_effort_rejects_unknown_value(fake_backend: FakeBackend) -> None:
+    result = CliRunner().invoke(main, ["-r", "turbo", "hello"])
+    assert result.exit_code != 0
+
+
+def test_reasoning_effort_applies_to_classifier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, Any] = {}
+
+    def fake_classifier_factory(model: str, **kwargs: Any) -> FakeClassifier:
+        captured.update(kwargs)
+        return FakeClassifier()
+
+    monkeypatch.setattr(
+        "yak.main.create_backend", lambda model, **kwargs: FakeBackend()
+    )
+    monkeypatch.setattr("yak.main.create_classifier", fake_classifier_factory)
+    CliRunner().invoke(main, ["-r", "low", "hello"])
+    assert captured["reasoning_effort"] == "low"
 
 
 def test_oneline_dictionary_outputs_first_meaning(

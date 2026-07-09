@@ -10,6 +10,8 @@ from yak.backends.base import DictionaryProvider
 from yak.backends.openai import (
     DEFAULT_CLASSIFIER_MODEL,
     DEFAULT_MODEL,
+    DEFAULT_REASONING_EFFORT,
+    REASONING_EFFORTS,
     OpenAIBackend,
 )
 from yak.cache import CachingBackend, clear_cache, open_cache
@@ -18,22 +20,34 @@ from yak.interactive import InteractiveSession, Mode, run_interactive
 from yak.render import oneline_text, render_dictionary
 
 
-def create_backend(model: str, *, read_cache: bool = True) -> CachingBackend:
+def create_backend(
+    model: str,
+    *,
+    reasoning_effort: str = DEFAULT_REASONING_EFFORT,
+    read_cache: bool = True,
+) -> CachingBackend:
     api_key = os.environ.get("OPENAI_API_KEY_FOR_YAK")
     if not api_key:
         raise YakError("environment variable OPENAI_API_KEY_FOR_YAK is not set")
-    inner = OpenAIBackend(OpenAI(api_key=api_key), model)
+    inner = OpenAIBackend(OpenAI(api_key=api_key), model, reasoning_effort)
     return CachingBackend(
         inner,
         open_cache(),
-        namespace=f"openai:{model}",
+        namespace=f"openai:{model}:{reasoning_effort}",
         read_enabled=read_cache,
     )
 
 
-def create_classifier(model: str, *, read_cache: bool = True) -> CachingBackend:
+def create_classifier(
+    model: str,
+    *,
+    reasoning_effort: str = DEFAULT_REASONING_EFFORT,
+    read_cache: bool = True,
+) -> CachingBackend:
     """モード自動判定用バックエンド。テストから独立に差し替えられるよう分離する。"""
-    return create_backend(model, read_cache=read_cache)
+    return create_backend(
+        model, reasoning_effort=reasoning_effort, read_cache=read_cache
+    )
 
 
 @click.command()
@@ -57,6 +71,15 @@ def create_classifier(model: str, *, read_cache: bool = True) -> CachingBackend:
     help="OpenAI model for mode auto-detection",
 )
 @click.option(
+    "--reasoning-effort",
+    "-r",
+    envvar="YAK_REASONING_EFFORT",
+    type=click.Choice(REASONING_EFFORTS),
+    default=DEFAULT_REASONING_EFFORT,
+    show_default=True,
+    help="Reasoning depth; higher is slower. Applies to both models",
+)
+@click.option(
     "--no-cache", is_flag=True, help="Bypass cache reads (results are still saved)"
 )
 @click.option(
@@ -71,6 +94,7 @@ def main(
     translator: bool,
     model: str,
     classifier_model: str,
+    reasoning_effort: str,
     no_cache: bool,
     clear_cache_flag: bool,
     oneline: bool,
@@ -89,9 +113,15 @@ def main(
         )
         if text is None:
             if sys.stdin.isatty():
-                backend = create_backend(model, read_cache=not no_cache)
+                backend = create_backend(
+                    model, reasoning_effort=reasoning_effort, read_cache=not no_cache
+                )
                 classifier = (
-                    create_classifier(classifier_model, read_cache=not no_cache)
+                    create_classifier(
+                        classifier_model,
+                        reasoning_effort=reasoning_effort,
+                        read_cache=not no_cache,
+                    )
                     if mode == "auto"
                     else None
                 )
@@ -109,9 +139,15 @@ def main(
             text = sys.stdin.read().strip()
         if not text:
             raise YakError("no input text")
-        backend = create_backend(model, read_cache=not no_cache)
+        backend = create_backend(
+            model, reasoning_effort=reasoning_effort, read_cache=not no_cache
+        )
         if mode == "auto":
-            classifier = create_classifier(classifier_model, read_cache=not no_cache)
+            classifier = create_classifier(
+                classifier_model,
+                reasoning_effort=reasoning_effort,
+                read_cache=not no_cache,
+            )
             use_dictionary = classifier.classify(text).is_dictionary_entry
         else:
             use_dictionary = mode == "dictionary"
