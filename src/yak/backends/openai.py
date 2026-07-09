@@ -1,4 +1,7 @@
+from typing import cast
+
 from openai import OpenAI, OpenAIError
+from openai.types import ReasoningEffort
 from pydantic import BaseModel
 
 from yak.errors import YakError
@@ -6,6 +9,11 @@ from yak.models import DictionaryResult, ModeDecision, TranslationResult
 
 DEFAULT_MODEL = "gpt-5-mini"
 DEFAULT_CLASSIFIER_MODEL = "gpt-5-nano"
+
+# 推論の深さ。深いほど遅い。どれを受け付けるかはモデル依存
+# ("none" と "xhigh" は gpt-5.1 系のみ)なので、検証は API に任せる。
+REASONING_EFFORTS = ("none", "minimal", "low", "medium", "high", "xhigh")
+DEFAULT_REASONING_EFFORT = "minimal"
 
 
 def language_instruction(from_lang: str | None, to_lang: str | None) -> str:
@@ -61,9 +69,15 @@ _CLASSIFY_SYSTEM = (
 class OpenAIBackend:
     """Translator / DictionaryProvider の OpenAI 実装。"""
 
-    def __init__(self, client: OpenAI, model: str) -> None:
+    def __init__(
+        self,
+        client: OpenAI,
+        model: str,
+        reasoning_effort: str = DEFAULT_REASONING_EFFORT,
+    ) -> None:
         self._client = client
         self._model = model
+        self._reasoning_effort = reasoning_effort
 
     def translate(
         self,
@@ -109,6 +123,7 @@ class OpenAIBackend:
                     {"role": "user", "content": text},
                 ],
                 response_format=response_format,
+                reasoning_effort=cast(ReasoningEffort, self._reasoning_effort),
             )
         except OpenAIError as e:
             raise YakError(f"OpenAI API error: {e}") from e

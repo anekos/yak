@@ -6,6 +6,7 @@ from openai import OpenAI, OpenAIError
 from yak.backends.openai import (
     DEFAULT_CLASSIFIER_MODEL,
     DEFAULT_MODEL,
+    DEFAULT_REASONING_EFFORT,
     OpenAIBackend,
     language_instruction,
 )
@@ -140,6 +141,24 @@ def test_translate_wraps_openai_error() -> None:
 def test_default_models() -> None:
     assert DEFAULT_MODEL == "gpt-5-mini"
     assert DEFAULT_CLASSIFIER_MODEL == "gpt-5-nano"
+
+
+def test_default_reasoning_effort_is_minimal() -> None:
+    assert DEFAULT_REASONING_EFFORT == "minimal"
+    backend, fake = _backend(
+        TranslationResult(
+            detected_source_language="English", translated_text="こんにちは"
+        )
+    )
+    backend.translate("hello", None, None, None)
+    assert fake.calls[0]["reasoning_effort"] == "minimal"
+
+
+def test_reasoning_effort_is_passed_through() -> None:
+    fake = _FakeClient(ModeDecision(is_dictionary_entry=True))
+    backend = OpenAIBackend(cast(OpenAI, fake), "test-model", "high")
+    backend.classify("cat")
+    assert fake.calls[0]["reasoning_effort"] == "high"
 
 
 def test_classify_returns_parsed_result() -> None:
