@@ -6,7 +6,7 @@ from tests.test_cli import FakeBackend, FakeClassifier
 from yak.backends.base import ModeClassifier
 from yak.errors import YakError
 from yak.interactive import InteractiveSession, Mode, run_interactive
-from yak.models import DictionaryResult, Pronunciation, TranslationResult
+from yak.models import AnswerResult, DictionaryResult, Pronunciation, TranslationResult
 
 
 def _session(
@@ -111,6 +111,104 @@ def test_bang_alone_clears_with_feedback() -> None:
     assert "クリア" in feedback
     session.handle_line("hello")
     assert backend.translate_calls[0]["extra"] is None
+
+
+def test_question_mark_asks_question() -> None:
+    backend = FakeBackend()
+    session = _session(backend)
+    assert session.handle_line("? What does this mean?") == "回答です。"
+    assert backend.ask_calls[0]["question"] == "What does this mean?"
+    assert backend.ask_calls[0]["context"] is None
+
+
+def test_question_includes_session_context() -> None:
+    backend = FakeBackend()
+    session = _session(backend)
+    session.handle_line("hello")
+    session.handle_line("? なぜこの訳になるの?")
+    context = backend.ask_calls[0]["context"]
+    assert context is not None
+    assert "hello" in context
+    assert "こんにちは" in context
+
+
+def test_question_exchange_is_added_to_context() -> None:
+    backend = FakeBackend()
+    session = _session(backend)
+    session.handle_line("? first question")
+    session.handle_line("? second question")
+    context = backend.ask_calls[1]["context"]
+    assert context is not None
+    assert "first question" in context
+    assert "回答です。" in context
+
+
+def test_question_context_is_capped() -> None:
+    backend = FakeBackend()
+    session = _session(backend)
+    for i in range(25):
+        session.handle_line(f"line {i}")
+    session.handle_line("? question")
+    context = backend.ask_calls[0]["context"]
+    assert context is not None
+    assert "line 4" not in context
+    assert "line 5" in context
+    assert "line 24" in context
+
+
+def test_question_uses_extra_instructions() -> None:
+    backend = FakeBackend()
+    session = _session(backend)
+    session.handle_line("!Use polite form.")
+    session.handle_line("? question")
+    assert backend.ask_calls[0]["extra"] == "Use polite form."
+
+
+def test_question_mark_alone_raises() -> None:
+    session = _session(FakeBackend())
+    with pytest.raises(YakError):
+        session.handle_line("?")
+
+
+def test_question_with_translate_only_backend_raises() -> None:
+    session = InteractiveSession(
+        TranslateOnlyBackend(),  # type: ignore[arg-type]
+        mode="translation",
+        classifier=None,
+        from_lang=None,
+        to_lang=None,
+    )
+    with pytest.raises(YakError, match="question mode"):
+        session.handle_line("? question")
+
+
+def test_auto_mode_does_not_classify_question_lines() -> None:
+    backend = FakeBackend()
+    classifier = FakeClassifier()
+    session = _session(backend, mode="auto", classifier=classifier)
+    session.handle_line("? question")
+    assert classifier.classify_calls == []
+
+
+def test_oneline_question_joins_lines() -> None:
+    class MultilineAnswerBackend:
+        def ask(
+            self,
+            question: str,
+            context: str | None,
+            extra_instruction: str | None,
+        ) -> AnswerResult:
+            return AnswerResult(answer="一行目。\n\n二行目。")
+
+    session = InteractiveSession(
+        MultilineAnswerBackend(),  # type: ignore[arg-type]
+        mode="translation",
+        classifier=None,
+        from_lang=None,
+        to_lang=None,
+        oneline=True,
+    )
+    assert session.handle_line("? question") == "一行目。 二行目。"
 
 
 def test_dictionary_mode_with_translate_only_backend_raises() -> None:
