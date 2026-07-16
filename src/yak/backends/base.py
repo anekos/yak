@@ -1,6 +1,6 @@
 from typing import Protocol, runtime_checkable
 
-from yak.models import DictionaryResult, ModeDecision, TranslationResult
+from yak.models import AnswerResult, DictionaryResult, ModeDecision, TranslationResult
 
 
 @runtime_checkable
@@ -30,6 +30,18 @@ class DictionaryProvider(Protocol):
         to_lang: str | None,
         extra_instruction: str | None,
     ) -> DictionaryResult: ...
+
+
+@runtime_checkable
+class QuestionAnswerer(Protocol):
+    """質問モード(`? ...`)を提供できるバックエンドのインターフェイス。"""
+
+    def ask(
+        self,
+        question: str,
+        context: str | None,
+        extra_instruction: str | None,
+    ) -> AnswerResult: ...
 
 
 @runtime_checkable

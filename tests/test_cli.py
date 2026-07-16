@@ -6,13 +6,20 @@ from click.testing import CliRunner
 
 from yak.cache import open_cache
 from yak.main import main
-from yak.models import DictionaryResult, ModeDecision, Pronunciation, TranslationResult
+from yak.models import (
+    AnswerResult,
+    DictionaryResult,
+    ModeDecision,
+    Pronunciation,
+    TranslationResult,
+)
 
 
 class FakeBackend:
     def __init__(self) -> None:
         self.translate_calls: list[dict[str, Any]] = []
         self.lookup_calls: list[dict[str, Any]] = []
+        self.ask_calls: list[dict[str, Any]] = []
 
     def translate(
         self,
@@ -43,6 +50,17 @@ class FakeBackend:
             pronunciation=Pronunciation(katakana="キャット", ipa="/kæt/"),
             examples=["I have a cat."],
         )
+
+    def ask(
+        self,
+        question: str,
+        context: str | None,
+        extra_instruction: str | None,
+    ) -> AnswerResult:
+        self.ask_calls.append(
+            {"question": question, "context": context, "extra": extra_instruction}
+        )
+        return AnswerResult(answer="回答です。")
 
 
 class FakeClassifier:

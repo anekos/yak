@@ -11,7 +11,13 @@ from yak.backends.openai import (
     language_instruction,
 )
 from yak.errors import YakError
-from yak.models import DictionaryResult, ModeDecision, Pronunciation, TranslationResult
+from yak.models import (
+    AnswerResult,
+    DictionaryResult,
+    ModeDecision,
+    Pronunciation,
+    TranslationResult,
+)
 
 
 def test_language_instruction_both_specified() -> None:
@@ -123,6 +129,32 @@ def test_lookup_returns_parsed_result() -> None:
     result = backend.lookup("cat", None, None, None)
     assert result == expected
     assert fake.calls[0]["response_format"] is DictionaryResult
+
+
+def test_ask_returns_parsed_result() -> None:
+    expected = AnswerResult(answer="It is a greeting.")
+    backend, fake = _backend(expected)
+    result = backend.ask("What does it mean?", None, None)
+    assert result == expected
+    call = fake.calls[0]
+    assert call["response_format"] is AnswerResult
+    assert call["messages"][1] == {"role": "user", "content": "What does it mean?"}
+    assert "Recent session exchanges" not in call["messages"][0]["content"]
+
+
+def test_ask_includes_context_in_system() -> None:
+    backend, fake = _backend(AnswerResult(answer="ok"))
+    backend.ask("why?", "Input: hello\nOutput: こんにちは", None)
+    system = fake.calls[0]["messages"][0]["content"]
+    assert "Input: hello" in system
+    assert "Output: こんにちは" in system
+
+
+def test_ask_includes_extra_instruction() -> None:
+    backend, fake = _backend(AnswerResult(answer="ok"))
+    backend.ask("why?", None, "Use polite form.")
+    system = fake.calls[0]["messages"][0]["content"]
+    assert "Use polite form." in system
 
 
 def test_translate_raises_yak_error_on_none_parsed() -> None:

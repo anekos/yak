@@ -3,9 +3,14 @@ from pathlib import Path
 import diskcache
 from platformdirs import user_cache_dir
 
-from yak.backends.base import DictionaryProvider, ModeClassifier, Translator
+from yak.backends.base import (
+    DictionaryProvider,
+    ModeClassifier,
+    QuestionAnswerer,
+    Translator,
+)
 from yak.errors import YakError
-from yak.models import DictionaryResult, ModeDecision, TranslationResult
+from yak.models import AnswerResult, DictionaryResult, ModeDecision, TranslationResult
 
 CACHE_SIZE_LIMIT = 100 * 1024 * 1024  # 100MB
 
@@ -33,7 +38,7 @@ class CachingBackend:
 
     def __init__(
         self,
-        inner: Translator | DictionaryProvider | ModeClassifier,
+        inner: Translator | DictionaryProvider | QuestionAnswerer | ModeClassifier,
         cache: diskcache.Cache,
         *,
         namespace: str,
@@ -91,6 +96,23 @@ class CachingBackend:
         if not isinstance(self._inner, DictionaryProvider):
             raise YakError("this backend does not support dictionary mode")
         result = self._inner.lookup(text, from_lang, to_lang, extra_instruction)
+        self._cache[key] = result.model_dump()
+        return result
+
+    def ask(
+        self,
+        question: str,
+        context: str | None,
+        extra_instruction: str | None,
+    ) -> AnswerResult:
+        key = ("ask", self._namespace, question, context, extra_instruction)
+        if self._read_enabled:
+            cached = self._cache.get(key)
+            if cached is not None:
+                return AnswerResult.model_validate(cached)
+        if not isinstance(self._inner, QuestionAnswerer):
+            raise YakError("this backend does not support question mode")
+        result = self._inner.ask(question, context, extra_instruction)
         self._cache[key] = result.model_dump()
         return result
 

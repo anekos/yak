@@ -5,7 +5,7 @@ from openai.types import ReasoningEffort
 from pydantic import BaseModel
 
 from yak.errors import YakError
-from yak.models import DictionaryResult, ModeDecision, TranslationResult
+from yak.models import AnswerResult, DictionaryResult, ModeDecision, TranslationResult
 
 DEFAULT_MODEL = "gpt-5-mini"
 DEFAULT_CLASSIFIER_MODEL = "gpt-5-nano"
@@ -56,6 +56,15 @@ _DICTIONARY_SYSTEM = (
     "otherwise use the input word itself."
 )
 
+_ASK_SYSTEM = (
+    "You are the assistant behind a translation CLI. "
+    "The user asks a free-form question, often about the preceding translations "
+    "or dictionary lookups shown in the session context. "
+    "Answer concisely, in the same language as the question."
+)
+
+_ASK_CONTEXT = "\n\nRecent session exchanges (for context):\n{context}"
+
 _CLASSIFY_SYSTEM = (
     "You are a mode classifier for a translation tool. "
     "Decide whether the input is a dictionary headword: a single word, or a "
@@ -102,6 +111,17 @@ class OpenAIBackend:
             languages=language_instruction(from_lang, to_lang)
         )
         return self._parse(system, text, extra_instruction, DictionaryResult)
+
+    def ask(
+        self,
+        question: str,
+        context: str | None,
+        extra_instruction: str | None,
+    ) -> AnswerResult:
+        system = _ASK_SYSTEM
+        if context:
+            system += _ASK_CONTEXT.format(context=context)
+        return self._parse(system, question, extra_instruction, AnswerResult)
 
     def classify(self, text: str) -> ModeDecision:
         return self._parse(_CLASSIFY_SYSTEM, text, None, ModeDecision)

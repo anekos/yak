@@ -112,6 +112,31 @@ def test_translate_with_lookup_only_inner_raises(tmp_path: Path) -> None:
         caching.translate("hello", None, None, None)
 
 
+def test_second_ask_hits_cache(tmp_path: Path) -> None:
+    backend = FakeBackend()
+    caching = CachingBackend(backend, _make_cache(tmp_path), namespace="test")
+    first = caching.ask("why?", "Input: hello\nOutput: こんにちは", None)
+    second = caching.ask("why?", "Input: hello\nOutput: こんにちは", None)
+    assert first == second
+    assert len(backend.ask_calls) == 1
+
+
+def test_different_contexts_are_separate_entries(tmp_path: Path) -> None:
+    backend = FakeBackend()
+    caching = CachingBackend(backend, _make_cache(tmp_path), namespace="test")
+    caching.ask("why?", None, None)
+    caching.ask("why?", "Input: hello\nOutput: こんにちは", None)
+    assert len(backend.ask_calls) == 2
+
+
+def test_ask_with_translate_only_inner_raises(tmp_path: Path) -> None:
+    caching = CachingBackend(
+        TranslateOnlyBackend(), _make_cache(tmp_path), namespace="test"
+    )
+    with pytest.raises(YakError, match="question mode"):
+        caching.ask("why?", None, None)
+
+
 def test_second_classify_hits_cache(tmp_path: Path) -> None:
     classifier = FakeClassifier(is_dictionary_entry=True)
     caching = CachingBackend(classifier, _make_cache(tmp_path), namespace="test")

@@ -21,6 +21,12 @@ class DictionaryResult(BaseModel):
     examples: list[str]
 
 
+class AnswerResult(BaseModel):
+    """質問モードの結果。OpenAI Structured Outputs のスキーマとしても使う。"""
+
+    answer: str
+
+
 class ModeDecision(BaseModel):
     """モード自動判定の結果。OpenAI Structured Outputs のスキーマとしても使う。"""
 
